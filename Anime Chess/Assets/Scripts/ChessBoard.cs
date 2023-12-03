@@ -12,6 +12,9 @@ public class ChessBoard : MonoBehaviour
     [SerializeField] private float tileSize = 1.0f;
     [SerializeField] private float yOffset = 0.2f;
     [SerializeField] private Vector3 boardCenter = Vector3.zero;
+    [SerializeField] private float deathSize = 0.3f;
+    [SerializeField] private float deathSpacing = 0.3725f;
+    [SerializeField] private float dragOffset = 0.9f;
 
     [Header("Prefabs & Materials")] 
     [SerializeField] private GameObject[] prefabs;
@@ -19,6 +22,9 @@ public class ChessBoard : MonoBehaviour
     
     // LOGIC
     private ChessPiece[,] chessPieces;
+    private ChessPiece currentDragging;
+    private List<ChessPiece> deadWhites = new();
+    private List<ChessPiece> deadBlacks = new();
     private const int TILE_COUNT_X = 8;
     private const int TILE_COUNT_Y = 8;
 
@@ -55,7 +61,6 @@ public class ChessBoard : MonoBehaviour
                 currentHover = hitPosition;
                 tiles[hitPosition.x, hitPosition.y].layer = LayerMask.NameToLayer("Hover");
             }
-            
             // Check if the new hovered tile is different from the previously hovered tile
             if (currentHover != hitPosition)
             {
@@ -65,20 +70,69 @@ public class ChessBoard : MonoBehaviour
                 currentHover = hitPosition;
                 tiles[hitPosition.x, hitPosition.y].layer = LayerMask.NameToLayer("Hover");
             }
+            
+            if (Input.GetMouseButtonDown(0))
+            {
+                if (chessPieces[hitPosition.x, hitPosition.y] != null)
+                {
+                    // Is our turn?
+                    if (true)
+                    {
+                        currentDragging = chessPieces[hitPosition.x, hitPosition.y];
+                    }
+                }
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                if (currentDragging != null && Input.GetMouseButtonUp(0))
+                {
+                    var previousPosition = new Vector2Int(currentDragging.currentX, currentDragging.currentY); // Stupid?
+
+                    bool validMove = CanMoveTo(currentDragging, hitPosition.x, hitPosition.y);
+                    if (!validMove)
+                    {
+                        //Back to its old position
+                        currentDragging.SetPosition(GetTileCenter(previousPosition.x, previousPosition.y)); // Stupid?
+                        currentDragging = null;
+                    }
+                    else
+                    {
+                        currentDragging = null;
+                    }
+                }
+            }
         }
         else
         {
-            // If the mouse cursor is not over any tile
+            // If the mouse cursor is not over any tile anymore
             
             // Check if there was a tile previously hovered
             if (currentHover != -Vector2Int.one)
             {
-                // Reset
-               tiles[currentHover.x, currentHover.y].layer = LayerMask.NameToLayer("Tile");
-               currentHover = -Vector2Int.one;
-            } 
+                // Reset the hovering
+                tiles[currentHover.x, currentHover.y].layer = LayerMask.NameToLayer("Tile");
+                currentHover = -Vector2Int.one;
+            }
+
+            if (currentDragging && Input.GetMouseButtonUp(0))
+            {
+                currentDragging.SetPosition(GetTileCenter(currentDragging.currentX, currentDragging.currentY)); // Stupid?
+                currentDragging = null;
+            }
+        }
+        // If dragging a piece
+        if (currentDragging)
+        {
+            Plane horizontalPlane = new Plane(Vector3.up, Vector3.up * yOffset);
+            float distance = 0.0f;
+            if (horizontalPlane.Raycast(ray, out distance))
+            {
+                currentDragging.SetPosition(ray.GetPoint(distance) + Vector3.up * dragOffset);
+            }
         }
     }
+    
 
     // Generate Chessboard
     private void GenerateGrid(float tileSize, int tileCountX, int tileCountY)
@@ -202,7 +256,7 @@ public class ChessBoard : MonoBehaviour
     {
         chessPieces[x, y].currentX = x;
         chessPieces[x, y].currentY = y;
-        chessPieces[x, y].transform.position = GetTileCenter(x, y);
+        chessPieces[x, y].SetPosition(GetTileCenter(x, y), force);
 
     }
 
@@ -219,5 +273,49 @@ public class ChessBoard : MonoBehaviour
                     return new Vector2Int(x, y);
 
         return -Vector2Int.one; // Invalid
+    }
+    
+    private bool CanMoveTo(ChessPiece chessPiece, int x, int y)
+    {
+        Vector2Int previousPosition = new Vector2Int(chessPiece.currentX, chessPiece.currentY);
+
+        // Is there another piece on the target position?
+        if (chessPieces[x, y] != null)
+        {
+            ChessPiece otherChessPiece = chessPieces[x, y];
+
+            if (chessPiece.team == otherChessPiece.team)
+            {
+                return false;
+            }
+
+            if (otherChessPiece.team == 0) // Stupid
+            {
+                deadWhites.Add(otherChessPiece);
+                otherChessPiece.SetScale(Vector3.one * deathSize); // Stupid
+                otherChessPiece.SetPosition(
+                    new Vector3(8 * tileSize, yOffset, -1 * tileSize)
+                    - bounds
+                    + new Vector3(tileSize / 2, 0, tileSize / 2)
+                    + (Vector3.forward * deathSpacing) * deadWhites.Count); // So stupid
+                    
+            }
+            else
+            {
+                deadBlacks.Add(otherChessPiece);
+                otherChessPiece.SetScale(Vector3.one * deathSize); // Stupid
+                otherChessPiece.SetPosition(
+                    new Vector3(-1 * tileSize, yOffset, 8 * tileSize)
+                    - bounds
+                    + new Vector3(tileSize / 2, 0, tileSize / 2)
+                    + (Vector3.back * deathSpacing) * deadBlacks.Count); // So stupid
+            }
+        }
+        chessPieces[x, y] = chessPiece;
+        chessPieces[previousPosition.x, previousPosition.y] = null;
+        
+        PositionSinglePiece(x,y);
+
+        return true;
     }
 }
