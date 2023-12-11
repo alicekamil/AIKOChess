@@ -23,6 +23,7 @@ public class ChessBoard : MonoBehaviour
     // LOGIC
     private ChessPiece[,] chessPieces;
     private ChessPiece currentDragging;
+    private List<Vector2Int> availableMoves = new();
     private List<ChessPiece> deadWhites = new();
     private List<ChessPiece> deadBlacks = new();
     private const int TILE_COUNT_X = 8;
@@ -50,7 +51,7 @@ public class ChessBoard : MonoBehaviour
         //TODO: Move to a playercontroller and invoke 
         RaycastHit info;
         Ray ray = currentCamera.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray, out info, 100, LayerMask.GetMask("Tile", "Hover")))
+        if (Physics.Raycast(ray, out info, 100, LayerMask.GetMask("Tile", "Hover", "Highlight")))
         {
             // Get the indexes of the tile we hit
             Vector2Int hitPosition = LookupTileIndex(info.transform.gameObject);
@@ -65,7 +66,7 @@ public class ChessBoard : MonoBehaviour
             if (currentHover != hitPosition)
             {
                 // Reset layer
-                tiles[currentHover.x, currentHover.y].layer = LayerMask.NameToLayer("Tile");
+                tiles[currentHover.x, currentHover.y].layer = (IsContainingValidMove(ref availableMoves, currentHover)) ? LayerMask.NameToLayer("Highlight") : LayerMask.NameToLayer("Tile");
                 // Update current
                 currentHover = hitPosition;
                 tiles[hitPosition.x, hitPosition.y].layer = LayerMask.NameToLayer("Hover");
@@ -79,6 +80,9 @@ public class ChessBoard : MonoBehaviour
                     if (true)
                     {
                         currentDragging = chessPieces[hitPosition.x, hitPosition.y];
+                        // List of walkable tiles
+                        availableMoves = currentDragging.GetAvailableMoves(ref chessPieces, TILE_COUNT_X, TILE_COUNT_Y);
+                        SetHighLightedTiles();
                     }
                 }
             }
@@ -89,6 +93,7 @@ public class ChessBoard : MonoBehaviour
                 {
                     var previousPosition = new Vector2Int(currentDragging.currentX, currentDragging.currentY); // Stupid?
 
+                    
                     bool validMove = CanMoveTo(currentDragging, hitPosition.x, hitPosition.y);
                     if (!validMove)
                     {
@@ -96,10 +101,8 @@ public class ChessBoard : MonoBehaviour
                         currentDragging.SetPosition(GetTileCenter(previousPosition.x, previousPosition.y)); // Stupid?
                         currentDragging = null;
                     }
-                    else
-                    {
-                        currentDragging = null;
-                    }
+                    currentDragging = null;
+                    RemoveHighLightedTiles();
                 }
             }
         }
@@ -111,7 +114,9 @@ public class ChessBoard : MonoBehaviour
             if (currentHover != -Vector2Int.one)
             {
                 // Reset the hovering
-                tiles[currentHover.x, currentHover.y].layer = LayerMask.NameToLayer("Tile");
+                tiles[currentHover.x, currentHover.y].layer = 
+                    (IsContainingValidMove(ref availableMoves, currentHover)) ? LayerMask.NameToLayer("Highlight")
+                    : LayerMask.NameToLayer("Tile");
                 currentHover = -Vector2Int.one;
             }
 
@@ -119,6 +124,7 @@ public class ChessBoard : MonoBehaviour
             {
                 currentDragging.SetPosition(GetTileCenter(currentDragging.currentX, currentDragging.currentY)); // Stupid?
                 currentDragging = null;
+                RemoveHighLightedTiles();
             }
         }
         // If dragging a piece
@@ -259,10 +265,26 @@ public class ChessBoard : MonoBehaviour
         chessPieces[x, y].SetPosition(GetTileCenter(x, y), force);
 
     }
-
     private Vector3 GetTileCenter(int x, int y)
     {
         return new Vector3(x * tileSize, yOffset, y * tileSize) - bounds + new Vector3(tileSize / 2, 0, tileSize / 2);
+    }
+    
+    // Highlight tiles
+    private void SetHighLightedTiles()
+    {
+        for (int i = 0; i < availableMoves.Count; i++)
+        {
+            tiles[availableMoves[i].x, availableMoves[i].y].layer = LayerMask.NameToLayer("Highlight");
+        }
+    }
+    private void RemoveHighLightedTiles()
+    {
+        for (int i = 0; i < availableMoves.Count; i++)
+        {
+            tiles[availableMoves[i].x, availableMoves[i].y].layer = LayerMask.NameToLayer("Tile");
+        }
+        availableMoves.Clear();
     }
     // Operations
     private Vector2Int LookupTileIndex(GameObject hitInfo)
@@ -274,9 +296,13 @@ public class ChessBoard : MonoBehaviour
 
         return -Vector2Int.one; // Invalid
     }
-    
     private bool CanMoveTo(ChessPiece chessPiece, int x, int y)
     {
+        if (!IsContainingValidMove(ref availableMoves, new Vector2(x, y)))
+        {
+            return false;
+        }
+        
         Vector2Int previousPosition = new Vector2Int(chessPiece.currentX, chessPiece.currentY);
 
         // Is there another piece on the target position?
@@ -317,5 +343,17 @@ public class ChessBoard : MonoBehaviour
         PositionSinglePiece(x,y);
 
         return true;
+    }
+
+    private bool IsContainingValidMove(ref List<Vector2Int> moves, Vector2 pos) // Stupid
+    {
+        for (int i = 0; i < moves.Count; i++)
+        {
+            if (moves[i].x == pos.x && moves[i].y == pos.y)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
