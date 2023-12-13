@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum ChessPieceType
+public enum ChessPieceType // Scriptable object?
 {
     None = 0,
     Pawn = 1,
@@ -12,7 +12,7 @@ public enum ChessPieceType
     Queen = 5,
     King = 6
 }   
-public class ChessPiece : MonoBehaviour
+public class ChessPiece : MonoBehaviour // Movement could be data assets?
 {
     //public int id {get;}
     //public PieceType Type { get; private set; }
@@ -50,7 +50,7 @@ public class ChessPiece : MonoBehaviour
 
     }
 
-    public virtual List<Vector2Int> GetAvailableMoves(ref ChessPiece[,] board, int tileCountX, int tileCountY) // TODO: make interface, stupid
+    public virtual List<Vector2Int> GetAvailableMoves(ref ChessPiece[,] board, int tileCountX, int tileCountY) // ...
     {
         List<Vector2Int> r = new List<Vector2Int>();
         r.Add(new Vector2Int(3,3));
